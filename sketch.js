@@ -9,6 +9,15 @@ let tiles = [];
 let selected = null;
 let targetMonth = '';
 let targetSlots = [];
+let touchState = {
+  startX: 0,
+  startY: 0,
+  startTime: 0,
+  lastTapTime: 0,
+  lastTapX: 0,
+  lastTapY: 0,
+  moved: false
+};
 
 // image assets (try to load images/1.png .. images/6.png and images/1b.png .. 6b)
 let imagesFront = [];
@@ -38,7 +47,7 @@ function preload() {
 }
 
 function setup() {
-  createCanvas(1000, 600);
+  createCanvas(windowWidth, windowHeight);
   textAlign(CENTER, CENTER);
 
   // Example letters (will be replaced visually by images when available)
@@ -71,32 +80,44 @@ function setup() {
   }
 
 
-  // layout tiles in one row; position them below the target area
-  const totalW = TILE_COUNT * (TILE_W + margin) - margin;
-  let startX = (width - totalW) / 2 + TILE_W / 2;
-  // compute target and tile positions relative to title/instructions
-  const targetCenterY = INSTR_Y + GAP_BELOW_TEXT + TILE_H / 2; // center for target slots
-  const tilesY = targetCenterY + TILE_H / 2 + 30; // tiles sit below the target area
-
-  for (let i = 0; i < tiles.length; i++) {
-    tiles[i].x = startX + i * (TILE_W + margin);
-    tiles[i].y = tilesY;
-  }
-
   // target month
   const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
   targetMonth = months[new Date().getMonth()];
 
   // build target slot positions so we can snap tiles to them
   targetSlots = [];
-  const cols = targetMonth.length;
+  layoutTiles();
+}
+
+function layoutTiles() {
+  const margin = 18;
+  // compute target and tile positions relative to title/instructions
+  const targetCenterY = INSTR_Y + GAP_BELOW_TEXT + TILE_H / 2; // center for target slots
+  const tilesY = targetCenterY + TILE_H / 2 + 30; // tiles sit below the target area
+
+  // target month and slots
+  const cols = targetMonth.length || 3;
   const marginSlots = 18;
   const totalWSlots = cols * (TILE_W + marginSlots) - marginSlots;
   const startXSlots = (width - totalWSlots) / 2 + TILE_W / 2;
+  targetSlots = [];
   for (let i = 0; i < cols; i++) {
     const sx = startXSlots + i * (TILE_W + marginSlots);
     targetSlots.push({ x: sx, y: targetCenterY, w: TILE_W, h: TILE_H });
   }
+
+  // layout tiles in one row; position them below the target area
+  const totalW = TILE_COUNT * (TILE_W + margin) - margin;
+  let startX = (width - totalW) / 2 + TILE_W / 2;
+  for (let i = 0; i < tiles.length; i++) {
+    tiles[i].x = startX + i * (TILE_W + margin);
+    tiles[i].y = tilesY;
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  layoutTiles();
 }
 
 function draw() {
@@ -150,6 +171,85 @@ function mousePressed() {
       break;
     }
   }
+}
+
+function touchStarted() {
+  // use first touch
+  const tx = touches && touches.length ? touches[0].x : mouseX;
+  const ty = touches && touches.length ? touches[0].y : mouseY;
+  const t = millis();
+
+  // detect double-tap
+  if (t - touchState.lastTapTime < 350 && dist(tx, ty, touchState.lastTapX, touchState.lastTapY) < 30) {
+    // double tap: flip topmost tile under touch
+    for (let i = tiles.length - 1; i >= 0; i--) {
+      if (tiles[i].hitTest(tx, ty)) {
+        tiles[i].flip();
+        break;
+      }
+    }
+    touchState.lastTapTime = 0;
+    touchState.moved = false;
+    return false; // prevent emulated mouse
+  }
+
+  touchState.lastTapTime = t;
+  touchState.lastTapX = tx;
+  touchState.lastTapY = ty;
+  touchState.startX = tx;
+  touchState.startY = ty;
+  touchState.startTime = t;
+  touchState.moved = false;
+
+  // select topmost tile under touch (like mousePressed)
+  selected = null;
+  for (let i = tiles.length - 1; i >= 0; i--) {
+    if (tiles[i].hitTest(tx, ty)) {
+      selected = tiles.splice(i, 1)[0];
+      tiles.push(selected);
+      selected.startDrag(tx, ty);
+      break;
+    }
+  }
+  return false;
+}
+
+function touchMoved() {
+  touchState.moved = true;
+  const tx = touches && touches.length ? touches[0].x : mouseX;
+  const ty = touches && touches.length ? touches[0].y : mouseY;
+  if (selected) selected.drag(tx, ty);
+  return false;
+}
+
+function touchEnded() {
+  const tx = (touches && touches.length) ? touches[0].x : mouseX;
+  const ty = (touches && touches.length) ? touches[0].y : mouseY;
+  const t = millis();
+
+  // If a tile was selected and a swipe occurred, rotate accordingly
+  if (selected && touchState.moved) {
+    const dx = tx - touchState.startX;
+    const dy = ty - touchState.startY;
+    const slen = sqrt(dx*dx + dy*dy);
+    if (slen > 40) {
+      // determine dominant direction
+      if (abs(dx) > abs(dy)) {
+        // horizontal swipe: right -> clockwise, left -> counter
+        if (dx > 0) selected.rotateBy(PI/2);
+        else selected.rotateBy(-PI/2);
+      } else {
+        // vertical swipe: down -> clockwise, up -> counter
+        if (dy > 0) selected.rotateBy(PI/2);
+        else selected.rotateBy(-PI/2);
+      }
+    }
+  }
+
+  // stop dragging selection on touch end
+  if (selected) selected.stopDrag();
+  touchState.moved = false;
+  return false;
 }
 
 function mouseReleased() {

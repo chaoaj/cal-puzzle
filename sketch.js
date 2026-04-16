@@ -48,11 +48,11 @@ function setup() {
   // create tile objects, preferring loaded image assets when available
   for (let i = 0; i < TILE_COUNT; i++) {
     const id = i + 1;
-    // force procedural front for tile 1 and 2 so they match coded shapes
-    const frontImg = (id === 1 || id === 2) ? buildFrontGraphic(letters[i], TILE_W, TILE_H, id)
-                         : ((imagesFront[i] && imagesFront[i].width) ? imagesFront[i] : buildFrontGraphic(letters[i], TILE_W, TILE_H, id));
-    // force procedural back for tile 1 and tile 2 so flipped faces match coded shapes
-    const backImg = (id === 1 || id === 2) ? buildBackGraphic(TILE_W, TILE_H, id)
+    // force procedural front for tile 1..4 so they match coded shapes
+    const frontImg = (id === 1 || id === 2 || id === 3 || id === 4) ? buildFrontGraphic(letters[i], TILE_W, TILE_H, id)
+               : ((imagesFront[i] && imagesFront[i].width) ? imagesFront[i] : buildFrontGraphic(letters[i], TILE_W, TILE_H, id));
+    // force procedural back for tile 1, tile 2 and tile 3 so flipped faces match coded shapes
+    const backImg = (id === 1 || id === 2 || id === 3) ? buildBackGraphic(TILE_W, TILE_H, id)
              : ((imagesBack[i] && imagesBack[i].width) ? imagesBack[i] : buildBackGraphic(TILE_W, TILE_H, id));
     const t = new Tile(frontImg, backImg, letters[i], id);
     tiles.push(t);
@@ -309,6 +309,7 @@ function buildFrontGraphic(letter, w, h, id=0) {
   // draw 7-seg style segments to approximate the tile images
   const segTh = Math.floor(min(w,h) * 0.12);
   const segLen = Math.floor(w * 0.56);
+  const shortLen = Math.max(0, segLen - 20); // shorten by 10px per side when needed
   const cx = w/2;
   const cy = h/2;
   const aY = h * 0.18;
@@ -337,20 +338,20 @@ function buildFrontGraphic(letter, w, h, id=0) {
 
   // default: draw all segments, then selectively clear for specific tiles
   // segments: a, b, c, d, e, f, g
-  // draw a
-  drawH(cx, aY, segLen, segTh);
-  // draw g
-  drawH(cx, gY, segLen, segTh);
-  // draw d
-  // draw bottom horizontal only for tiles other than tile 2
-  if (id !== 2) drawH(cx, dY, segLen, segTh);
+  // draw a (top) unless tile 3 which draws split top halves later
+  if (id !== 3) drawH(cx, aY, segLen, segTh);
+  // draw g (middle) - shortened for tile 3
+  drawH(cx, gY, (id === 3) ? shortLen : segLen, segTh);
+  // draw d (bottom) - shortened for tile 3 and omitted for tile 2 and tile 4 (keep green background)
+  if (id !== 2 && id !== 4) drawH(cx, dY, (id === 3) ? shortLen : segLen, segTh);
   // draw verticals f (top-left), b (top-right), e (bot-left), c (bot-right)
-  drawV(leftX, topVertY, h*0.28, segTh);
-  // skip drawing the upper-right vertical for tile 1 (we'll erase and shape it)
-  if (id !== 1) drawV(rightX, topVertY, h*0.28, segTh);
-  drawV(leftX, botVertY, h*0.28, segTh);
-  // bottom-right vertical omitted for tile 2 so background green shows through
-  if (id !== 2) drawV(rightX, botVertY, h*0.28, segTh);
+  // omit left/right side segments for tile 3
+  if (id !== 3) drawV(leftX, topVertY, h*0.28, segTh);
+  // skip drawing the upper-right vertical for tile 1 (we'll erase and shape it) and skip for tile 3
+  if (id !== 1 && id !== 3) drawV(rightX, topVertY, h*0.28, segTh);
+  if (id !== 3) drawV(leftX, botVertY, h*0.28, segTh);
+  // bottom-right vertical omitted for tile 2, tile 3, or tile 4 so background green shows through
+  if (id !== 2 && id !== 3 && id !== 4) drawV(rightX, botVertY, h*0.28, segTh);
 
   // tile-specific adjustments
   if (id === 1) {
@@ -444,8 +445,85 @@ function buildFrontGraphic(letter, w, h, id=0) {
     g.pop();
   }
 
-  // optional: show letter overlay faintly for debugging (skip for tile 1 and tile 2)
-  if (id !== 1 && id !== 2) {
+  if (id === 3) {
+    // Tile 3: draw a 'T' with the top segment separated (gap in center)
+    // and make the middle and bottom segments transparent.
+    g.push();
+    // clear the top segment entirely first
+    g.erase();
+    drawH(cx, aY, segLen + 2, segTh);
+    // also clear middle and bottom to make them transparent
+    drawH(cx, gY, segLen + 2, segTh);
+    drawH(cx, dY, segLen + 2, segTh);
+    g.noErase();
+
+    // draw the T: top split into two halves with a center gap
+    const gap = Math.max(8, Math.floor(segTh * 0.9));
+    const halfLen = (segLen - gap) / 2;
+    const leftTopX = cx - (gap/2) - (halfLen/2);
+    const rightTopX = cx + (gap/2) + (halfLen/2);
+    g.fill(0);
+    drawH(leftTopX, aY, halfLen, segTh);
+    drawH(rightTopX, aY, halfLen, segTh);
+
+    // draw a short vertical stem centered under the top
+    drawV(cx, aY + (segTh + (h*0.18))/2, h * 0.32, Math.floor(segTh * 0.9));
+
+    // add a mid-bottom vertical segment centered near the lower area
+    drawV(cx, botVertY, h * 0.22, segTh);
+
+    g.pop();
+  }
+
+  if (id === 4) {
+    // Tile 4 front: add a mirrored angled erase on the right half (like tile 2 but mirrored)
+    g.push();
+    g.erase();
+    // angled erase from lower-right area toward the middle-right segment
+    const startX4 = rightX + 6; // slightly right of the right vertical
+    const startY4 = dY - segTh * 0.2; // near bottom horizontal
+    const targetX4 = cx + segLen * 0.15; // a bit right of center
+    const targetY4 = gY - segTh * 0.1; // slightly above middle
+    // move the whole angled segment left by 20px (mirror of tile2's right-shift)
+    let adjStartX4 = startX4 - 20;
+    let adjTargetX4 = targetX4 - 20;
+
+    // compute direction and shorten ends by 10px for consistency
+    let dx4 = adjTargetX4 - adjStartX4;
+    let dy4 = targetY4 - startY4;
+    let segLenPix4 = sqrt(dx4 * dx4 + dy4 * dy4);
+    let sX4 = adjStartX4, sY4 = startY4, tX4 = adjTargetX4, tY4 = targetY4;
+    if (segLenPix4 > 20) {
+      const nx4 = dx4 / segLenPix4;
+      const ny4 = dy4 / segLenPix4;
+      sX4 += nx4 * 10;
+      sY4 += ny4 * 10;
+      tX4 -= nx4 * 10;
+      tY4 -= ny4 * 10;
+    }
+
+    // further shorten the top end by 15px to meet the requested trim
+    const dxF = tX4 - sX4;
+    const dyF = tY4 - sY4;
+    const segLenF = sqrt(dxF * dxF + dyF * dyF);
+    if (segLenF > 15) {
+      const nxF = dxF / segLenF;
+      const nyF = dyF / segLenF;
+      tX4 -= nxF * 15;
+      tY4 -= nyF * 15;
+    }
+
+    g.strokeWeight(segTh);
+    g.strokeCap(ROUND);
+    g.stroke(255);
+    g.line(sX4, sY4, tX4, tY4);
+
+    g.noErase();
+    g.pop();
+  }
+
+  // optional: show letter overlay faintly for debugging (skip for tile 1..4)
+  if (id !== 1 && id !== 2 && id !== 3 && id !== 4) {
     g.fill(255, 30);
     g.textAlign(CENTER, CENTER);
     g.textSize(w * 0.2);
@@ -535,6 +613,153 @@ function buildBackGraphic(w, h, id) {
     g.stroke(255);
     g.line(startX, startY, targetX, targetY);
 
+    g.noErase();
+    g.pop();
+
+    return makeWhiteTransparent(g);
+  }
+  if (id === 4) {
+    // Tile 4 back: produce only the transparent regions of the front,
+    // mirrored across the vertical axis (flip over vertically).
+    // Start with green background and erase the mirrored transparent shapes.
+    g.fill(90, 160, 60);
+    g.rect(0, 0, w, h, 12);
+
+    const segTh = Math.floor(min(w, h) * 0.12);
+    const segLen = Math.floor(w * 0.56);
+    const cx = w / 2;
+    const cy = h / 2;
+    const aY = h * 0.18;
+    const gY = cy;
+    const dY = h * 0.82;
+    const leftX = w * 0.22;
+    const rightX = w * 0.78;
+    const topVertY = h * 0.32;
+    const botVertY = h * 0.68;
+
+    function drawH(x, y, len, th) {
+      g.push();
+      g.rectMode(CENTER);
+      g.rect(x, y, len, th, th / 2);
+      g.pop();
+    }
+    function drawV(x, y, len, th) {
+      g.push();
+      g.rectMode(CENTER);
+      g.translate(x, y);
+      g.rect(0, 0, th, len, th / 2);
+      g.pop();
+    }
+
+    g.push();
+    g.erase();
+    // erase bottom horizontal (mirror stays the same)
+    drawH(cx, dY, segLen + 2, segTh);
+    // erase bottom-left vertical (mirror of front's bottom-right omission)
+    drawV(leftX, botVertY, h * 0.32, segTh);
+
+    // mirrored angled erase: mirror the front's right-half angled stroke across center
+    const frontStartX = rightX + 6;
+    const frontStartY = dY - segTh * 0.2;
+    const frontTargetX = cx + segLen * 0.15;
+    const frontTargetY = gY - segTh * 0.1;
+    // front had a left shift of 20 when drawn; mirror that transform here
+    let adjFrontStartX = frontStartX - 20;
+    let adjFrontTargetX = frontTargetX - 20;
+
+    // mirror across vertical center
+    let sX = w - adjFrontStartX;
+    let sY = frontStartY;
+    let tX = w - adjFrontTargetX;
+    let tY = frontTargetY;
+
+    // shorten both ends by 10px
+    let dx = tX - sX;
+    let dy = tY - sY;
+    let segLenPix = sqrt(dx * dx + dy * dy);
+    if (segLenPix > 20) {
+      const nx = dx / segLenPix;
+      const ny = dy / segLenPix;
+      sX += nx * 10;
+      sY += ny * 10;
+      tX -= nx * 10;
+      tY -= ny * 10;
+    }
+
+    // apply the same additional top-end shortening (15px) that the front used
+    const dxF = tX - sX;
+    const dyF = tY - sY;
+    const segLenF = sqrt(dxF * dxF + dyF * dyF);
+    if (segLenF > 15) {
+      const nxF = dxF / segLenF;
+      const nyF = dyF / segLenF;
+      tX -= nxF * 15;
+      tY -= nyF * 15;
+    }
+
+    g.strokeWeight(segTh);
+    g.strokeCap(ROUND);
+    g.stroke(255);
+    g.line(sX, sY, tX, tY);
+
+    g.noErase();
+    g.pop();
+
+    return makeWhiteTransparent(g);
+  }
+
+  // If tile 3, draw an '8' but make middle and bottom-mid sections transparent
+  if (id === 3) {
+    // match front green background
+    g.fill(90, 160, 60);
+    g.rect(0, 0, w, h, 12);
+
+    const segTh = Math.floor(min(w, h) * 0.12);
+    const segLen = Math.floor(w * 0.56);
+    const cx = w / 2;
+    const cy = h / 2;
+    const aY = h * 0.18;
+    const gY = cy;
+    const dY = h * 0.82;
+    const leftX = w * 0.22;
+    const rightX = w * 0.78;
+    const topVertY = h * 0.32;
+    const botVertY = h * 0.68;
+
+    function drawH(x, y, len, th) {
+      g.push();
+      g.rectMode(CENTER);
+      g.rect(x, y, len, th, th / 2);
+      g.pop();
+    }
+    function drawV(x, y, len, th) {
+      g.push();
+      g.rectMode(CENTER);
+      g.translate(x, y);
+      g.rect(0, 0, th, len, th / 2);
+      g.pop();
+    }
+
+    g.fill(0);
+    // draw full 8 (all segments)
+    drawH(cx, aY, segLen, segTh);
+    drawH(cx, gY, segLen, segTh);
+    // bottom horizontal left out so the background green shows through
+    drawV(leftX, topVertY, h * 0.28, segTh);
+    drawV(rightX, topVertY, h * 0.28, segTh);
+    drawV(leftX, botVertY, h * 0.28, segTh);
+    drawV(rightX, botVertY, h * 0.28, segTh);
+
+    // erase middle horizontal entirely and erase only the center portion of the bottom horizontal
+    // (leave bottom-left and bottom-right verticals intact)
+    g.push();
+    g.erase();
+    // full middle horizontal
+    drawH(cx, gY, segLen + 2, segTh);
+    // erase the center portion of bottom horizontal (bottom-mid section only)
+    // widen by 20px on each side (total +40px)
+    const centerClearW = segLen * 0.5 + 40;
+    drawH(cx, dY, centerClearW, segTh);
     g.noErase();
     g.pop();
 

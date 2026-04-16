@@ -9,6 +9,7 @@ let tiles = [];
 let selected = null;
 let targetMonth = '';
 let targetSlots = [];
+let numberTargetSlots = [];
 let touchState = {
   startX: 0,
   startY: 0,
@@ -22,6 +23,12 @@ let touchState = {
 // image assets (try to load images/1.png .. images/6.png and images/1b.png .. 6b)
 let imagesFront = [];
 let imagesBack = [];
+// optional separate assets for tile A
+let imageAFront = null;
+let imageABack = null;
+// optional separate assets for tile B
+let imageBFront = null;
+let imageBBack = null;
 
 // layout constants for title / instruction rows and spacing
 const TITLE_Y = 30;
@@ -44,6 +51,20 @@ function preload() {
       imagesBack[i] = null;
     }
   }
+  // try to load optional Tile A assets
+  try {
+    imageAFront = loadImage('images/a.png', () => {}, () => { imageAFront = null; });
+  } catch (e) { imageAFront = null; }
+  try {
+    imageABack = loadImage('images/ab.png', () => {}, () => { imageABack = null; });
+  } catch (e) { imageABack = null; }
+  // try to load optional Tile B assets
+  try {
+    imageBFront = loadImage('images/b.png', () => {}, () => { imageBFront = null; });
+  } catch (e) { imageBFront = null; }
+  try {
+    imageBBack = loadImage('images/bb.png', () => {}, () => { imageBBack = null; });
+  } catch (e) { imageBBack = null; }
 }
 
 function setup() {
@@ -79,6 +100,52 @@ function setup() {
     }
   }
 
+  // If Tile A assets loaded, create a double-sided Tile using them.
+  if (imageAFront || imageABack) {
+    const frontImg = (imageAFront && imageAFront.width) ? imageAFront : null;
+    const backImg = (imageABack && imageABack.width) ? imageABack : null;
+    const tileA = new Tile(frontImg || buildFrontGraphic('A', TILE_W, TILE_H, 0), backImg || buildBackGraphic(TILE_W, TILE_H, 0), 'A', 100);
+    // size tile to match a.png if available
+    if (frontImg && frontImg.width) {
+      // clamp to reasonable max so it fits on screen
+      const maxW = min(TILE_W * 1.6, frontImg.width);
+      const maxH = min(TILE_H * 1.6, frontImg.height);
+      tileA.w = maxW;
+      tileA.h = maxH;
+    }
+    // force procedural front for Tile A as capital 'O' with transparent right side
+    tileA.front = buildTileAFront(tileA.w, tileA.h);
+    // force procedural back for Tile A: a transparent '1' on the left side
+    tileA.back = buildTileABack(tileA.w, tileA.h);
+    // place at bottom-right corner with margin
+    tileA.x = width - tileA.w/2 - 20;
+    tileA.y = height - tileA.h/2 - 20;
+    // ensure pixels ready for hit-testing
+    try { if (frontImg) frontImg.loadPixels(); } catch (e) {}
+    try { if (backImg) backImg.loadPixels(); } catch (e) {}
+    tiles.push(tileA);
+  }
+  // If Tile B assets loaded, create Tile B similarly
+  if (imageBFront || imageBBack) {
+    const fB = (imageBFront && imageBFront.width) ? imageBFront : null;
+    const bB = (imageBBack && imageBBack.width) ? imageBBack : null;
+    const tileB = new Tile(fB || buildFrontGraphic('B', TILE_W, TILE_H, 0), bB || buildBackGraphic(TILE_W, TILE_H, 0), 'B', 101);
+    if (fB && fB.width) {
+      // clamp size to reasonable bounds
+      const maxW = min(TILE_W * 1.6, fB.width);
+      const maxH = min(TILE_H * 1.6, fB.height);
+      tileB.w = maxW;
+      tileB.h = maxH;
+    }
+    // place near bottom-right; if tileA exists, stack above it
+    const tileAObj = tiles.find(t => t.id === 100);
+    tileB.x = width - tileB.w/2 - 20;
+    tileB.y = tileAObj ? (tileAObj.y - tileB.h/2 - 12 - tileB.h/2) : (height - tileB.h/2 - 20);
+    try { if (fB) fB.loadPixels(); } catch (e) {}
+    try { if (bB) bB.loadPixels(); } catch (e) {}
+    tiles.push(tileB);
+  }
+
 
   // target month
   const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
@@ -106,12 +173,60 @@ function layoutTiles() {
     targetSlots.push({ x: sx, y: targetCenterY, w: TILE_W, h: TILE_H });
   }
 
+  // build number target slots (2 side-by-side) centered, below the month target area
+  // prefer sizing the number target slots to match Tile A / Tile B if present
+  const tileAObj = tiles.find(t => t.id === 100);
+  const tileBObj = tiles.find(t => t.id === 101);
+  numberTargetSlots = [];
+  const numCols = 2;
+  const numberGap = 18;
+  // per-slot width/height (use tile size if tile exists)
+  const slotWidths = [ (tileAObj ? tileAObj.w : TILE_W), (tileBObj ? tileBObj.w : TILE_W) ];
+  const slotHeights = [ (tileAObj ? tileAObj.h : TILE_H), (tileBObj ? tileBObj.h : TILE_H) ];
+  const totalWNumber = slotWidths.reduce((s,v)=>s+v,0) + numberGap * (numCols - 1);
+  const startXNumber = (width - totalWNumber) / 2 + slotWidths[0] / 2;
+  // compute Y so number targets sit below the month target background without overlapping
+  const topAreaBottom = targetCenterY + (TILE_H + 30) / 2; // bottom edge of month target background
+  const maxSlotH = Math.max(slotHeights[0], slotHeights[1]);
+  const gapBetweenAreas = 24;
+  const numberCenterY = topAreaBottom + maxSlotH / 2 + gapBetweenAreas;
+  let curX = startXNumber;
+  for (let i = 0; i < numCols; i++) {
+    numberTargetSlots.push({ x: curX, y: numberCenterY, w: slotWidths[i], h: slotHeights[i] });
+    curX += slotWidths[i] + numberGap;
+  }
+
   // layout tiles in one row; position them below the target area
-  const totalW = TILE_COUNT * (TILE_W + margin) - margin;
-  let startX = (width - totalW) / 2 + TILE_W / 2;
-  for (let i = 0; i < tiles.length; i++) {
-    tiles[i].x = startX + i * (TILE_W + margin);
-    tiles[i].y = tilesY;
+  // Position initial letter tiles (id 1..6) in 3 paired rows to the left of the target
+  const letterTiles = tiles.filter(t => t.id >= 1 && t.id <= 6).sort((a,b) => a.id - b.id);
+  const pairCols = 2;
+  const pairRows = 3;
+  const pairGapX = 12;
+  const pairGapY = 12;
+  const totalPairsH = pairRows * TILE_H + (pairRows - 1) * pairGapY;
+  const startYPairs = targetCenterY - totalPairsH / 2 + TILE_H / 2;
+  // place pairs to the left of the target slots
+  const startXPairs = startXSlots - TILE_W - 30;
+  for (let i = 0; i < letterTiles.length; i++) {
+    const r = Math.floor(i / pairCols);
+    const c = i % pairCols;
+    const x = startXPairs + c * (TILE_W + pairGapX);
+    const y = startYPairs + r * (TILE_H + pairGapY);
+    letterTiles[i].x = x;
+    letterTiles[i].y = y;
+  }
+
+  // Position number tiles (Tile A id=100, Tile B id=101) to the right of target slot #2 (index 1)
+  // Position number tiles (Tile A id=100, Tile B id=101) on the new number slots
+  const tileA = tileAObj;
+  const tileB = tileBObj;
+  if (tileA && numberTargetSlots[0]) {
+    tileA.x = numberTargetSlots[0].x;
+    tileA.y = numberTargetSlots[0].y;
+  }
+  if (tileB && numberTargetSlots[1]) {
+    tileB.x = numberTargetSlots[1].x;
+    tileB.y = numberTargetSlots[1].y;
   }
 }
 
@@ -158,6 +273,29 @@ function drawUI() {
   }
   noStroke();
   pop();
+
+  // draw number target area (two slots) below the month target area
+  if (numberTargetSlots && numberTargetSlots.length === 2) {
+    const nCols = numberTargetSlots.length;
+    const gap = 18;
+    const totalWNum = numberTargetSlots.reduce((s,slot)=>s+slot.w,0) + gap * (nCols - 1);
+    const maxHNum = Math.max(...numberTargetSlots.map(s=>s.h));
+    const numY = numberTargetSlots[0].y;
+    push();
+    noStroke();
+    fill(120, 120, 120, 220);
+    rectMode(CENTER);
+    rect(width/2, numY, totalWNum + 20, maxHNum + 30, 10);
+
+    fill(0);
+    stroke(120);
+    for (let i = 0; i < nCols; i++) {
+      const slot = numberTargetSlots[i];
+      rect(slot.x, slot.y, slot.w, slot.h, 8);
+    }
+    noStroke();
+    pop();
+  }
 }
 
 function mousePressed() {
@@ -254,8 +392,9 @@ function touchEnded() {
 
 function mouseReleased() {
   if (selected) {
-    // snap to any target slot the tile center is released over
-    for (let slot of targetSlots) {
+    // snap to any target slot the tile center is released over (month or number targets)
+    const allSlots = (targetSlots || []).concat(numberTargetSlots || []);
+    for (let slot of allSlots) {
       if (selected.x > slot.x - slot.w/2 && selected.x < slot.x + slot.w/2 &&
           selected.y > slot.y - slot.h/2 && selected.y < slot.y + slot.h/2) {
         selected.x = slot.x;
@@ -1390,4 +1529,88 @@ function makeWhiteTransparent(gfx) {
   }
   img.updatePixels();
   return img;
+}
+
+// build a procedural front for Tile A: a capital 'O' but with the right
+// vertical segment erased (transparent) so it reads as an O with a right-side gap.
+function buildTileAFront(w, h) {
+  const g = createGraphics(w, h);
+  g.clear();
+  g.noStroke();
+  // base green background
+  g.fill(90,160,60);
+  g.rect(0,0,w,h,12);
+
+  const segTh = Math.floor(min(w,h) * 0.12);
+  const segLen = Math.floor(w * 0.56);
+  const cx = w/2;
+  const aY = h * 0.18;
+  const dY = h * 0.82;
+  const leftX = w * 0.22;
+  const rightX = w * 0.78;
+
+  function drawH(x, y, len, th) {
+    g.push();
+    g.rectMode(CENTER);
+    g.rect(x, y, len, th, th/2);
+    g.pop();
+  }
+  function drawV(x, y, len, th) {
+    g.push();
+    g.rectMode(CENTER);
+    g.translate(x, y);
+    g.rect(0, 0, th, len, th/2);
+    g.pop();
+  }
+
+  // draw the O: top, bottom, left vertical, right vertical
+  g.fill(0);
+  drawH(cx, aY, segLen, segTh);
+  drawH(cx, dY, segLen, segTh);
+  drawV(leftX, (aY + dY)/2, h * 0.6, segTh);
+  drawV(rightX, (aY + dY)/2, h * 0.6, segTh);
+
+  // erase the right vertical to make it transparent (the 'gap')
+  g.push();
+  g.erase();
+  drawV(rightX, (aY + dY)/2, h * 0.6, segTh);
+  g.noErase();
+  g.pop();
+
+  return makeWhiteTransparent(g);
+}
+
+// build a procedural back for Tile A: a transparent '1' on the left side
+function buildTileABack(w, h) {
+  const g = createGraphics(w, h);
+  g.clear();
+  g.noStroke();
+  // base back color (match front green)
+  g.fill(90, 160, 60);
+  g.rect(0, 0, w, h, 12);
+
+  const segTh = Math.floor(min(w,h) * 0.12);
+  const cx = w/2;
+  const cy = h/2;
+  const aY = h * 0.18;
+  const dY = h * 0.82;
+  const leftX = w * 0.22;
+
+  function drawV(x, y, len, th) {
+    g.push();
+    g.rectMode(CENTER);
+    g.translate(x, y);
+    g.rect(0, 0, th, len, th/2);
+    g.pop();
+  }
+
+  // erase a vertical '1' stem on the left: match the front's vertical segment height
+  g.push();
+  g.erase();
+  // center the erased stem vertically and use the same length as the front (h * 0.6)
+  drawV(leftX, cy, h * 0.6, segTh);
+  g.noErase();
+  g.pop();
+
+  return makeWhiteTransparent(g);
 }

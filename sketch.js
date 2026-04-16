@@ -442,6 +442,21 @@ function buildFrontGraphic(letter, w, h, id=0) {
     g.noErase();
     g.pop();
 
+    // draw a black angled segment that is the horizontal mirror of the
+    // transparent lower-left segment (place on the opposite side)
+    (function(){
+      const blackStartX = w - sX2;
+      const blackStartY = sY2;
+      const blackTargetX = w - tX2;
+      const blackTargetY = tY2;
+      g.push();
+      g.stroke(0);
+      g.strokeWeight(segTh);
+      g.strokeCap(ROUND);
+      g.line(blackStartX, blackStartY, blackTargetX, blackTargetY);
+      g.pop();
+    })();
+
     return makeWhiteTransparent(g);
   }
 

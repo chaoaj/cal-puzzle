@@ -107,7 +107,7 @@ function setup() {
 function layoutTiles() {
   const margin = 18;
   // compute target and tile positions relative to title/instructions
-  const targetCenterY = INSTR_Y + GAP_BELOW_TEXT + TILE_H / 2; // center for target slots
+  const targetCenterY = INSTR_Y + GAP_BELOW_TEXT + TILE_H / 2 + 20; // center for target slots (moved down 20px)
   const tilesY = targetCenterY + TILE_H / 2 + 30; // tiles sit below the target area
 
   // target month and slots

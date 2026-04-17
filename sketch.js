@@ -21,20 +21,7 @@ let touchState = {
 };
 
 // image assets (try to load images/1.png .. images/6.png and images/1b.png .. 6b)
-let imagesFront = [];
-let imagesBack = [];
-// optional separate assets for tile A
-let imageAFront = null;
-let imageABack = null;
-// optional separate assets for tile B
-let imageBFront = null;
-let imageBBack = null;
-// optional separate assets for tile C
-let imageCFront = null;
-let imageCBack = null;
-// optional separate assets for tile D
-let imageDFront = null;
-let imageDBack = null;
+// no image assets: all tiles are constructed procedurally
 
 // layout constants for title / instruction rows and spacing
 const TITLE_Y = 30;
@@ -42,49 +29,7 @@ const INSTR_Y = 52;
 const GAP_BELOW_TEXT = 30; // increased to push target area lower
 
 function preload() {
-  for (let i = 0; i < TILE_COUNT; i++) {
-    const idx = i + 1;
-    // front: images/1.png
-    try {
-      imagesFront[i] = loadImage(`images/${idx}.png`, () => {}, () => { imagesFront[i] = null; });
-    } catch (e) {
-      imagesFront[i] = null;
-    }
-    // back: images/1b.png
-    try {
-      imagesBack[i] = loadImage(`images/${idx}b.png`, () => {}, () => { imagesBack[i] = null; });
-    } catch (e) {
-      imagesBack[i] = null;
-    }
-  }
-  // try to load optional Tile A assets
-  try {
-    imageAFront = loadImage('images/a.png', () => {}, () => { imageAFront = null; });
-  } catch (e) { imageAFront = null; }
-  try {
-    imageABack = loadImage('images/ab.png', () => {}, () => { imageABack = null; });
-  } catch (e) { imageABack = null; }
-  // try to load optional Tile B assets
-  try {
-    imageBFront = loadImage('images/b.png', () => {}, () => { imageBFront = null; });
-  } catch (e) { imageBFront = null; }
-  try {
-    imageBBack = loadImage('images/bb.png', () => {}, () => { imageBBack = null; });
-  } catch (e) { imageBBack = null; }
-  // try to load optional Tile C assets
-  try {
-    imageCFront = loadImage('images/c.png', () => {}, () => { imageCFront = null; });
-  } catch (e) { imageCFront = null; }
-  try {
-    imageCBack = loadImage('images/cb.png', () => {}, () => { imageCBack = null; });
-  } catch (e) { imageCBack = null; }
-  // try to load optional Tile D assets
-  try {
-    imageDFront = loadImage('images/d.png', () => {}, () => { imageDFront = null; });
-  } catch (e) { imageDFront = null; }
-  try {
-    imageDBack = loadImage('images/db.png', () => {}, () => { imageDBack = null; });
-  } catch (e) { imageDBack = null; }
+  // intentionally empty — no external image files are loaded; all tiles are procedural
 }
 
 function setup() {
@@ -95,128 +40,57 @@ function setup() {
   const letters = ['J', 'A', 'N', 'F', 'E', 'B'];
   const margin = 18;
 
-  // create tile objects, preferring loaded image assets when available
+  // create tile objects procedurally for tiles 1..6
   for (let i = 0; i < TILE_COUNT; i++) {
     const id = i + 1;
-    // force procedural front for tile 1..6 so they match coded shapes
-    const frontImg = (id === 1 || id === 2 || id === 3 || id === 4 || id === 5 || id === 6) ? buildFrontGraphic(letters[i], TILE_W, TILE_H, id)
-           : ((imagesFront[i] && imagesFront[i].width) ? imagesFront[i] : buildFrontGraphic(letters[i], TILE_W, TILE_H, id));
-    // force procedural back for tile 1..6 so flipped faces match coded shapes
-    const backImg = (id === 1 || id === 2 || id === 3 || id === 4 || id === 5 || id === 6) ? buildBackGraphic(TILE_W, TILE_H, id)
-         : ((imagesBack[i] && imagesBack[i].width) ? imagesBack[i] : buildBackGraphic(TILE_W, TILE_H, id));
+    const frontImg = buildFrontGraphic(letters[i], TILE_W, TILE_H, id);
+    const backImg = buildBackGraphic(TILE_W, TILE_H, id);
     const t = new Tile(frontImg, backImg, letters[i], id);
     tiles.push(t);
   }
 
-  // ensure loaded images have their pixel buffers ready for alpha sampling
-  for (let i = 0; i < TILE_COUNT; i++) {
-    const f = imagesFront[i];
-    const b = imagesBack[i];
-    if (f && f.width) {
-      try { f.loadPixels(); } catch (e) {}
-    }
-    if (b && b.width) {
-      try { b.loadPixels(); } catch (e) {}
-    }
-  }
+  // no external images to prepare; all tile faces are procedural
 
-  // If Tile A assets loaded, create a double-sided Tile using them.
-  if (imageAFront || imageABack) {
-    const frontImg = (imageAFront && imageAFront.width) ? imageAFront : null;
-    const backImg = (imageABack && imageABack.width) ? imageABack : null;
-    const tileA = new Tile(frontImg || buildFrontGraphic('A', TILE_W, TILE_H, 0), backImg || buildBackGraphic(TILE_W, TILE_H, 0), 'A', 100);
-    // size tile to match a.png if available
-    if (frontImg && frontImg.width) {
-      // clamp to reasonable max so it fits on screen
-      const maxW = min(TILE_W * 1.6, frontImg.width);
-      const maxH = min(TILE_H * 1.6, frontImg.height);
-      tileA.w = maxW;
-      tileA.h = maxH;
-    }
-    // force procedural front for Tile A as capital 'O' with transparent right side
+  // Create Tile A (procedural)
+  {
+    const tileA = new Tile(buildFrontGraphic('A', TILE_W, TILE_H, 0), buildBackGraphic(TILE_W, TILE_H, 0), 'A', 100);
     tileA.front = buildTileAFront(tileA.w, tileA.h);
-    // force procedural back for Tile A: a transparent '1' on the left side
     tileA.back = buildTileABack(tileA.w, tileA.h);
-    // place at bottom-right corner with margin
     tileA.x = width - tileA.w/2 - 20;
     tileA.y = height - tileA.h/2 - 20;
-    // ensure pixels ready for hit-testing
-    try { if (frontImg) frontImg.loadPixels(); } catch (e) {}
-    try { if (backImg) backImg.loadPixels(); } catch (e) {}
     tiles.push(tileA);
   }
-  // If Tile B assets loaded, create Tile B similarly
-  if (imageBFront || imageBBack) {
-    const fB = (imageBFront && imageBFront.width) ? imageBFront : null;
-    const bB = (imageBBack && imageBBack.width) ? imageBBack : null;
-    const tileB = new Tile(fB || buildFrontGraphic('B', TILE_W, TILE_H, 0), bB || buildBackGraphic(TILE_W, TILE_H, 0), 'B', 101);
-    if (fB && fB.width) {
-      // clamp size to reasonable bounds
-      const maxW = min(TILE_W * 1.6, fB.width);
-      const maxH = min(TILE_H * 1.6, fB.height);
-      tileB.w = maxW;
-      tileB.h = maxH;
-    }
-    // place near bottom-right; if tileA exists, stack above it
+
+  // Create Tile B (procedural)
+  {
+    const tileB = new Tile(buildFrontGraphic('B', TILE_W, TILE_H, 0), buildBackGraphic(TILE_W, TILE_H, 0), 'B', 101);
+    tileB.front = buildTileBFront(tileB.w, tileB.h);
+    tileB.back = buildTileBBack(tileB.w, tileB.h);
     const tileAObj = tiles.find(t => t.id === 100);
     tileB.x = width - tileB.w/2 - 20;
     tileB.y = tileAObj ? (tileAObj.y - tileB.h/2 - 12 - tileB.h/2) : (height - tileB.h/2 - 20);
-    try { if (fB) fB.loadPixels(); } catch (e) {}
-    try { if (bB) bB.loadPixels(); } catch (e) {}
-    // force procedural front for Tile B: a 7-seg '8' with specific transparent segments
-    tileB.front = buildTileBFront(tileB.w, tileB.h);
-    // force procedural back for Tile B: a transparent '4' (four) drawn with 4 segments
-    tileB.back = buildTileBBack(tileB.w, tileB.h);
     tiles.push(tileB);
   }
 
-  // If Tile C assets loaded, create Tile C using the provided images
-  if (imageCFront || imageCBack) {
-    const fC = (imageCFront && imageCFront.width) ? imageCFront : null;
-    const bC = (imageCBack && imageCBack.width) ? imageCBack : null;
-    const tileC = new Tile(fC || buildFrontGraphic('C', TILE_W, TILE_H, 0), bC || buildBackGraphic(TILE_W, TILE_H, 0), 'C', 102);
-    if (fC && fC.width) {
-      const maxW = min(TILE_W * 1.6, fC.width);
-      const maxH = min(TILE_H * 1.6, fC.height);
-      tileC.w = maxW;
-      tileC.h = maxH;
-    }
-    // stack Tile C above Tile B if present, otherwise place near bottom-right
+  // Create Tile C (procedural)
+  {
+    const tileC = new Tile(buildFrontGraphic('C', TILE_W, TILE_H, 0), buildBackGraphic(TILE_W, TILE_H, 0), 'C', 102);
+    tileC.front = buildTileCFront(tileC.w, tileC.h);
+    tileC.back = buildTileCBack(tileC.w, tileC.h);
     const tileBObj = tiles.find(t => t.id === 101);
     tileC.x = width - tileC.w/2 - 20;
     tileC.y = tileBObj ? (tileBObj.y - tileC.h/2 - 12 - tileC.h/2) : (height - tileC.h/2 - 20);
-    try { if (fC) fC.loadPixels(); } catch (e) {}
-    try { if (bC) bC.loadPixels(); } catch (e) {}
-    // force procedural front for Tile C: capital 'L' with 3 segments, bottom transparent
-    tileC.front = buildTileCFront(tileC.w, tileC.h);
-    // force procedural back for Tile C: a '2' where the bottom segment is transparent
-    tileC.back = buildTileCBack(tileC.w, tileC.h);
-    // use images for back if provided; otherwise keep existing back
     tiles.push(tileC);
   }
 
-  // If Tile D assets loaded, create Tile D using the provided images
-  if (imageDFront || imageDBack) {
-    const fD = (imageDFront && imageDFront.width) ? imageDFront : null;
-    const bD = (imageDBack && imageDBack.width) ? imageDBack : null;
-    const tileD = new Tile(fD || buildFrontGraphic('D', TILE_W, TILE_H, 0), bD || buildBackGraphic(TILE_W, TILE_H, 0), 'D', 103);
-    if (fD && fD.width) {
-      const maxW = min(TILE_W * 1.6, fD.width);
-      const maxH = min(TILE_H * 1.6, fD.height);
-      tileD.w = maxW;
-      tileD.h = maxH;
-    }
-    // position Tile D stacked above Tile C if present, otherwise near bottom-right
+  // Create Tile D (procedural)
+  {
+    const tileD = new Tile(buildFrontGraphic('D', TILE_W, TILE_H, 0), buildBackGraphic(TILE_W, TILE_H, 0), 'D', 103);
+    tileD.front = buildTileDFront(tileD.w, tileD.h);
+    tileD.back = buildTileDBack(tileD.w, tileD.h);
     const tileCObj = tiles.find(t => t.id === 102);
     tileD.x = width - tileD.w/2 - 20;
     tileD.y = tileCObj ? (tileCObj.y - tileD.h/2 - 12 - tileD.h/2) : (height - tileD.h/2 - 20);
-    try { if (fD) fD.loadPixels(); } catch (e) {}
-    try { if (bD) bD.loadPixels(); } catch (e) {}
-    // force procedural front for Tile D: a 7-seg '9' (6 segments) then make
-    // the two upper vertical segments transparent (erased). No angled segments.
-    tileD.front = buildTileDFront(tileD.w, tileD.h);
-    // force procedural back for Tile D: a '2' where the upper-right segment is transparent
-    tileD.back = buildTileDBack(tileD.w, tileD.h);
     tiles.push(tileD);
   }
 
@@ -290,33 +164,33 @@ function layoutTiles() {
     letterTiles[i].y = y;
   }
 
-  // Position number tiles (Tile A id=100, Tile B id=101) to the right of target slot #2 (index 1)
-  // Position number tiles (Tile A id=100, Tile B id=101) on the primary number slots
-  // Any additional number tiles (Tile C id=102, Tile D id=103, etc.) are stacked
-  // vertically on the far right so they don't overlap the month/number target areas.
+  // Position special tiles (Tile A id=100, Tile B id=101, Tile C id=102, Tile D id=103, etc.)
+  // along the right side in a grid of two columns (two rows for up to 4 tiles).
   const specialTiles = tiles.filter(t => t.id >= 100).sort((a,b) => a.id - b.id);
-  // assign first two into the number target slots if available
-  if (specialTiles.length > 0 && numberTargetSlots[0]) {
-    specialTiles[0].x = numberTargetSlots[0].x;
-    specialTiles[0].y = numberTargetSlots[0].y;
-  }
-  if (specialTiles.length > 1 && numberTargetSlots[1]) {
-    specialTiles[1].x = numberTargetSlots[1].x;
-    specialTiles[1].y = numberTargetSlots[1].y;
-  }
-  // stack any remaining special tiles vertically on the far right
-  const extras = specialTiles.slice(2);
-  if (extras.length > 0) {
+  if (specialTiles.length > 0) {
+    const cols = 2;
     const gap = 12;
-    const maxW = Math.max(...extras.map(t=>t.w));
-    const colX = width - maxW/2 - 20;
-    const totalH = extras.reduce((s,t)=>s + t.h, 0) + gap * (extras.length - 1);
-    const startYStack = numberTargetSlots && numberTargetSlots.length > 0 ? numberTargetSlots[0].y : (targetCenterY + TILE_H/2 + 40);
-    let curY = startYStack - totalH/2;
-    for (let et of extras) {
-      et.x = colX;
-      et.y = curY + et.h/2;
-      curY += et.h + gap;
+    const maxW = Math.max(...specialTiles.map(t=>t.w));
+    const maxH = Math.max(...specialTiles.map(t=>t.h));
+    const gridRows = Math.ceil(specialTiles.length / cols);
+    const gridWidth = cols * maxW + (cols - 1) * gap;
+    const gridHeight = gridRows * maxH + (gridRows - 1) * gap;
+
+    // compute right-side column centers
+    const rightColX = width - 20 - maxW/2;
+    const leftColX = rightColX - (maxW + gap);
+
+    // align grid top with the top of the month/target area so A-D line up
+    const topAreaTop = targetCenterY - (TILE_H + 30) / 2;
+    const startY = topAreaTop + maxH/2;
+
+    for (let i = 0; i < specialTiles.length; i++) {
+      const r = Math.floor(i / cols);
+      const c = i % cols;
+      const x = (c === 0) ? leftColX : rightColX;
+      const y = startY + r * (maxH + gap);
+      specialTiles[i].x = x;
+      specialTiles[i].y = y;
     }
   }
 }
@@ -340,7 +214,8 @@ function drawUI() {
   text('Calendar Puzzle - Month Tiles', width/2, 30);
   textSize(16);
   fill(240);
-  text('Drag tiles to the lower target area. Double-click or press F to flip. Q/E rotate.', width/2, 52);
+  text('Drag tiles to the lower target area.', width/2, 52);
+  text('Double-click or press F to flip. Q/E rotate.', width/2, 72);
 
   // target area
   // draw target area using precomputed targetSlots
@@ -632,7 +507,7 @@ function buildFrontGraphic(letter, w, h, id=0) {
   const g = createGraphics(w, h);
   g.clear();
   g.noStroke();
-  // base green background
+  // base green background for letter tiles 1-6
   g.fill(90,160,60);
   g.rect(0,0,w,h,12);
   // If id is 5, render only a capital 'L' (left vertical + bottom horizontal)
@@ -1628,8 +1503,8 @@ function buildTileAFront(w, h) {
   const g = createGraphics(w, h);
   g.clear();
   g.noStroke();
-  // base green background
-  g.fill(90,160,60);
+  // base darker green background for special tiles (A-D)
+  g.fill(60,120,40);
   g.rect(0,0,w,h,12);
 
   const segTh = Math.floor(min(w,h) * 0.12);
@@ -1676,8 +1551,8 @@ function buildTileABack(w, h) {
   const g = createGraphics(w, h);
   g.clear();
   g.noStroke();
-  // base back color (match front green)
-  g.fill(90, 160, 60);
+  // base back darker green (match special front)
+  g.fill(60, 120, 40);
   g.rect(0, 0, w, h, 12);
 
   const segTh = Math.floor(min(w,h) * 0.12);
@@ -1713,8 +1588,8 @@ function buildTileBFront(w, h) {
   const g = createGraphics(w, h);
   g.clear();
   g.noStroke();
-  // base green background
-  g.fill(90,160,60);
+  // base darker green background for special tiles (A-D)
+  g.fill(60,120,40);
   g.rect(0,0,w,h,12);
 
   const segTh = Math.floor(min(w,h) * 0.12);
@@ -1775,8 +1650,8 @@ function buildTileBBack(w, h) {
   const g = createGraphics(w, h);
   g.clear();
   g.noStroke();
-  // use the front green to match special back styles so erasing reveals transparency
-  g.fill(90,160,60);
+  // use the darker special green to match front so erasing reveals transparency
+  g.fill(60,120,40);
   g.rect(0,0,w,h,12);
 
   const segTh = Math.floor(min(w,h) * 0.12);
@@ -1829,8 +1704,8 @@ function buildTileCFront(w, h) {
   const g = createGraphics(w, h);
   g.clear();
   g.noStroke();
-  // base green background
-  g.fill(90,160,60);
+  // base darker green background for special tiles (A-D)
+  g.fill(60,120,40);
   g.rect(0,0,w,h,12);
 
   const segTh = Math.floor(min(w,h) * 0.12);
@@ -1875,8 +1750,8 @@ function buildTileCBack(w, h) {
   const g = createGraphics(w, h);
   g.clear();
   g.noStroke();
-  // base back color (match front green)
-  g.fill(90,160,60);
+  // base back darker green (match special front)
+  g.fill(60,120,40);
   g.rect(0,0,w,h,12);
 
   const segTh = Math.floor(min(w,h) * 0.12);
@@ -1929,8 +1804,8 @@ function buildTileDFront(w, h) {
   const g = createGraphics(w, h);
   g.clear();
   g.noStroke();
-  // base green background
-  g.fill(90,160,60);
+  // base darker green background for special tiles (A-D)
+  g.fill(60,120,40);
   g.rect(0,0,w,h,12);
 
   const segTh = Math.floor(min(w,h) * 0.12);
@@ -1986,8 +1861,8 @@ function buildTileDBack(w, h) {
   const g = createGraphics(w, h);
   g.clear();
   g.noStroke();
-  // base back color (match front green)
-  g.fill(90,160,60);
+  // base back darker green (match special front)
+  g.fill(60,120,40);
   g.rect(0,0,w,h,12);
 
   const segTh = Math.floor(min(w,h) * 0.12);

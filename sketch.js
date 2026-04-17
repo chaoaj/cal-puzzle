@@ -29,6 +29,12 @@ let imageABack = null;
 // optional separate assets for tile B
 let imageBFront = null;
 let imageBBack = null;
+// optional separate assets for tile C
+let imageCFront = null;
+let imageCBack = null;
+// optional separate assets for tile D
+let imageDFront = null;
+let imageDBack = null;
 
 // layout constants for title / instruction rows and spacing
 const TITLE_Y = 30;
@@ -65,6 +71,20 @@ function preload() {
   try {
     imageBBack = loadImage('images/bb.png', () => {}, () => { imageBBack = null; });
   } catch (e) { imageBBack = null; }
+  // try to load optional Tile C assets
+  try {
+    imageCFront = loadImage('images/c.png', () => {}, () => { imageCFront = null; });
+  } catch (e) { imageCFront = null; }
+  try {
+    imageCBack = loadImage('images/cb.png', () => {}, () => { imageCBack = null; });
+  } catch (e) { imageCBack = null; }
+  // try to load optional Tile D assets
+  try {
+    imageDFront = loadImage('images/d.png', () => {}, () => { imageDFront = null; });
+  } catch (e) { imageDFront = null; }
+  try {
+    imageDBack = loadImage('images/db.png', () => {}, () => { imageDBack = null; });
+  } catch (e) { imageDBack = null; }
 }
 
 function setup() {
@@ -143,7 +163,61 @@ function setup() {
     tileB.y = tileAObj ? (tileAObj.y - tileB.h/2 - 12 - tileB.h/2) : (height - tileB.h/2 - 20);
     try { if (fB) fB.loadPixels(); } catch (e) {}
     try { if (bB) bB.loadPixels(); } catch (e) {}
+    // force procedural front for Tile B: a 7-seg '8' with specific transparent segments
+    tileB.front = buildTileBFront(tileB.w, tileB.h);
+    // force procedural back for Tile B: a transparent '4' (four) drawn with 4 segments
+    tileB.back = buildTileBBack(tileB.w, tileB.h);
     tiles.push(tileB);
+  }
+
+  // If Tile C assets loaded, create Tile C using the provided images
+  if (imageCFront || imageCBack) {
+    const fC = (imageCFront && imageCFront.width) ? imageCFront : null;
+    const bC = (imageCBack && imageCBack.width) ? imageCBack : null;
+    const tileC = new Tile(fC || buildFrontGraphic('C', TILE_W, TILE_H, 0), bC || buildBackGraphic(TILE_W, TILE_H, 0), 'C', 102);
+    if (fC && fC.width) {
+      const maxW = min(TILE_W * 1.6, fC.width);
+      const maxH = min(TILE_H * 1.6, fC.height);
+      tileC.w = maxW;
+      tileC.h = maxH;
+    }
+    // stack Tile C above Tile B if present, otherwise place near bottom-right
+    const tileBObj = tiles.find(t => t.id === 101);
+    tileC.x = width - tileC.w/2 - 20;
+    tileC.y = tileBObj ? (tileBObj.y - tileC.h/2 - 12 - tileC.h/2) : (height - tileC.h/2 - 20);
+    try { if (fC) fC.loadPixels(); } catch (e) {}
+    try { if (bC) bC.loadPixels(); } catch (e) {}
+    // force procedural front for Tile C: capital 'L' with 3 segments, bottom transparent
+    tileC.front = buildTileCFront(tileC.w, tileC.h);
+    // force procedural back for Tile C: a '2' where the bottom segment is transparent
+    tileC.back = buildTileCBack(tileC.w, tileC.h);
+    // use images for back if provided; otherwise keep existing back
+    tiles.push(tileC);
+  }
+
+  // If Tile D assets loaded, create Tile D using the provided images
+  if (imageDFront || imageDBack) {
+    const fD = (imageDFront && imageDFront.width) ? imageDFront : null;
+    const bD = (imageDBack && imageDBack.width) ? imageDBack : null;
+    const tileD = new Tile(fD || buildFrontGraphic('D', TILE_W, TILE_H, 0), bD || buildBackGraphic(TILE_W, TILE_H, 0), 'D', 103);
+    if (fD && fD.width) {
+      const maxW = min(TILE_W * 1.6, fD.width);
+      const maxH = min(TILE_H * 1.6, fD.height);
+      tileD.w = maxW;
+      tileD.h = maxH;
+    }
+    // position Tile D stacked above Tile C if present, otherwise near bottom-right
+    const tileCObj = tiles.find(t => t.id === 102);
+    tileD.x = width - tileD.w/2 - 20;
+    tileD.y = tileCObj ? (tileCObj.y - tileD.h/2 - 12 - tileD.h/2) : (height - tileD.h/2 - 20);
+    try { if (fD) fD.loadPixels(); } catch (e) {}
+    try { if (bD) bD.loadPixels(); } catch (e) {}
+    // force procedural front for Tile D: a 7-seg '9' (6 segments) then make
+    // the two upper vertical segments transparent (erased). No angled segments.
+    tileD.front = buildTileDFront(tileD.w, tileD.h);
+    // force procedural back for Tile D: a '2' where the upper-right segment is transparent
+    tileD.back = buildTileDBack(tileD.w, tileD.h);
+    tiles.push(tileD);
   }
 
 
@@ -204,9 +278,9 @@ function layoutTiles() {
   const pairGapX = 12;
   const pairGapY = 12;
   const totalPairsH = pairRows * TILE_H + (pairRows - 1) * pairGapY;
-  const startYPairs = targetCenterY - totalPairsH / 2 + TILE_H / 2;
-  // place pairs to the left of the target slots
-  const startXPairs = startXSlots - TILE_W - 30;
+  const startYPairs = targetCenterY - totalPairsH / 2 + TILE_H / 2 + 150; // moved down 150px
+  // place pairs to the left of the target slots (shifted left 150px)
+  const startXPairs = startXSlots - TILE_W - 30 - 150;
   for (let i = 0; i < letterTiles.length; i++) {
     const r = Math.floor(i / pairCols);
     const c = i % pairCols;
@@ -217,16 +291,33 @@ function layoutTiles() {
   }
 
   // Position number tiles (Tile A id=100, Tile B id=101) to the right of target slot #2 (index 1)
-  // Position number tiles (Tile A id=100, Tile B id=101) on the new number slots
-  const tileA = tileAObj;
-  const tileB = tileBObj;
-  if (tileA && numberTargetSlots[0]) {
-    tileA.x = numberTargetSlots[0].x;
-    tileA.y = numberTargetSlots[0].y;
+  // Position number tiles (Tile A id=100, Tile B id=101) on the primary number slots
+  // Any additional number tiles (Tile C id=102, Tile D id=103, etc.) are stacked
+  // vertically on the far right so they don't overlap the month/number target areas.
+  const specialTiles = tiles.filter(t => t.id >= 100).sort((a,b) => a.id - b.id);
+  // assign first two into the number target slots if available
+  if (specialTiles.length > 0 && numberTargetSlots[0]) {
+    specialTiles[0].x = numberTargetSlots[0].x;
+    specialTiles[0].y = numberTargetSlots[0].y;
   }
-  if (tileB && numberTargetSlots[1]) {
-    tileB.x = numberTargetSlots[1].x;
-    tileB.y = numberTargetSlots[1].y;
+  if (specialTiles.length > 1 && numberTargetSlots[1]) {
+    specialTiles[1].x = numberTargetSlots[1].x;
+    specialTiles[1].y = numberTargetSlots[1].y;
+  }
+  // stack any remaining special tiles vertically on the far right
+  const extras = specialTiles.slice(2);
+  if (extras.length > 0) {
+    const gap = 12;
+    const maxW = Math.max(...extras.map(t=>t.w));
+    const colX = width - maxW/2 - 20;
+    const totalH = extras.reduce((s,t)=>s + t.h, 0) + gap * (extras.length - 1);
+    const startYStack = numberTargetSlots && numberTargetSlots.length > 0 ? numberTargetSlots[0].y : (targetCenterY + TILE_H/2 + 40);
+    let curY = startYStack - totalH/2;
+    for (let et of extras) {
+      et.x = colX;
+      et.y = curY + et.h/2;
+      curY += et.h + gap;
+    }
   }
 }
 
@@ -1609,6 +1700,336 @@ function buildTileABack(w, h) {
   g.erase();
   // center the erased stem vertically and use the same length as the front (h * 0.6)
   drawV(leftX, cy, h * 0.6, segTh);
+  g.noErase();
+  g.pop();
+
+  return makeWhiteTransparent(g);
+}
+
+// build a procedural front for Tile B: a 7-segment '8' but with the
+// two left vertical segments transparent, the middle horizontal transparent,
+// and the upper-right vertical transparent.
+function buildTileBFront(w, h) {
+  const g = createGraphics(w, h);
+  g.clear();
+  g.noStroke();
+  // base green background
+  g.fill(90,160,60);
+  g.rect(0,0,w,h,12);
+
+  const segTh = Math.floor(min(w,h) * 0.12);
+  const segLen = Math.floor(w * 0.56);
+  const cx = w/2;
+  const cy = h/2;
+  const aY = h * 0.18;
+  const gY = cy;
+  const dY = h * 0.82;
+  const leftX = w * 0.22;
+  const rightX = w * 0.78;
+  const topVertY = h * 0.32;
+  const botVertY = h * 0.68;
+
+  function drawH(x, y, len, th) {
+    g.push();
+    g.rectMode(CENTER);
+    g.rect(x, y, len, th, th/2);
+    g.pop();
+  }
+  function drawV(x, y, len, th) {
+    g.push();
+    g.rectMode(CENTER);
+    g.translate(x, y);
+    g.rect(0, 0, th, len, th/2);
+    g.pop();
+  }
+
+  // draw the full 8 in black first
+  g.fill(0);
+  drawH(cx, aY, segLen, segTh); // top
+  drawH(cx, gY, segLen, segTh); // middle
+  drawH(cx, dY, segLen, segTh); // bottom
+  drawV(leftX, topVertY, h * 0.28, segTh); // top-left
+  drawV(rightX, topVertY, h * 0.28, segTh); // top-right
+  drawV(leftX, botVertY, h * 0.28, segTh); // bottom-left
+  drawV(rightX, botVertY, h * 0.28, segTh); // bottom-right
+
+  // erase the two left verticals (top-left and bottom-left)
+  g.push();
+  g.erase();
+  drawV(leftX, topVertY, h * 0.28, segTh);
+  drawV(leftX, botVertY, h * 0.28, segTh);
+  // erase the middle horizontal
+  drawH(cx, gY, segLen + 2, segTh);
+  // erase the upper-right vertical (top-right)
+  drawV(rightX, topVertY, h * 0.28, segTh);
+  g.noErase();
+  g.pop();
+
+  return makeWhiteTransparent(g);
+}
+
+// build a procedural back for Tile B: a transparent 4 (four) using 4 straight
+// 7-seg style segments (no angled segments). Segments erased: top-left, middle,
+// top-right, bottom-right — producing a '4' shaped transparent area.
+function buildTileBBack(w, h) {
+  const g = createGraphics(w, h);
+  g.clear();
+  g.noStroke();
+  // use the front green to match special back styles so erasing reveals transparency
+  g.fill(90,160,60);
+  g.rect(0,0,w,h,12);
+
+  const segTh = Math.floor(min(w,h) * 0.12);
+  const segLen = Math.floor(w * 0.56);
+  const cx = w/2;
+  const cy = h/2;
+  const aY = h * 0.18;
+  const gY = cy;
+  const dY = h * 0.82;
+  const leftX = w * 0.22;
+  const rightX = w * 0.78;
+  const topVertY = h * 0.32;
+  const botVertY = h * 0.68;
+
+  function drawH(x, y, len, th) {
+    g.push();
+    g.rectMode(CENTER);
+    g.rect(x, y, len, th, th/2);
+    g.pop();
+  }
+  function drawV(x, y, len, th) {
+    g.push();
+    g.rectMode(CENTER);
+    g.translate(x, y);
+    g.rect(0, 0, th, len, th/2);
+    g.pop();
+  }
+
+  // Erase the 4-segments that form a digital '4' (f, g, b, c):
+  g.push();
+  g.erase();
+  // top-left vertical (f)
+  drawV(leftX, topVertY, h * 0.28, segTh);
+  // middle horizontal (g)
+  drawH(cx, gY, segLen + 2, segTh);
+  // top-right vertical (b)
+  drawV(rightX, topVertY, h * 0.28, segTh);
+  // bottom-right vertical (c)
+  drawV(rightX, botVertY, h * 0.28, segTh);
+  g.noErase();
+  g.pop();
+
+  return makeWhiteTransparent(g);
+}
+
+// build a procedural front for Tile C: capital 'L' composed of 3 segments
+// (top horizontal, left vertical, bottom horizontal), with the bottom segment
+// erased (transparent) per request.
+function buildTileCFront(w, h) {
+  const g = createGraphics(w, h);
+  g.clear();
+  g.noStroke();
+  // base green background
+  g.fill(90,160,60);
+  g.rect(0,0,w,h,12);
+
+  const segTh = Math.floor(min(w,h) * 0.12);
+  const segLen = Math.floor(w * 0.56);
+  const cx = w/2;
+  const aY = h * 0.18;
+  const dY = h * 0.82;
+  const leftX = w * 0.22;
+
+  function drawH(x, y, len, th) {
+    g.push();
+    g.rectMode(CENTER);
+    g.rect(x, y, len, th, th/2);
+    g.pop();
+  }
+  function drawV(x, y, len, th) {
+    g.push();
+    g.rectMode(CENTER);
+    g.translate(x, y);
+    g.rect(0, 0, th, len, th/2);
+    g.pop();
+  }
+
+  // draw only the left vertical; keep the top green (do not draw or erase it)
+  // and erase only the bottom horizontal to make it transparent
+  g.fill(0);
+  drawV(leftX, (aY + dY)/2, h * 0.6, segTh);
+
+  // erase bottom horizontal to make it transparent
+  g.push();
+  g.erase();
+  drawH(cx, dY, segLen + 2, segTh);
+  g.noErase();
+  g.pop();
+
+  return makeWhiteTransparent(g);
+}
+
+// build a procedural back for Tile C: a '2' drawn with 7-seg style segments,
+// but the bottom horizontal segment is erased (transparent).
+function buildTileCBack(w, h) {
+  const g = createGraphics(w, h);
+  g.clear();
+  g.noStroke();
+  // base back color (match front green)
+  g.fill(90,160,60);
+  g.rect(0,0,w,h,12);
+
+  const segTh = Math.floor(min(w,h) * 0.12);
+  const segLen = Math.floor(w * 0.56);
+  const cx = w/2;
+  const cy = h/2;
+  const aY = h * 0.18;
+  const gY = cy;
+  const dY = h * 0.82;
+  const leftX = w * 0.22;
+  const rightX = w * 0.78;
+  const topVertY = h * 0.32;
+  const botVertY = h * 0.68;
+
+  function drawH(x, y, len, th) {
+    g.push();
+    g.rectMode(CENTER);
+    g.rect(x, y, len, th, th/2);
+    g.pop();
+  }
+  function drawV(x, y, len, th) {
+    g.push();
+    g.rectMode(CENTER);
+    g.translate(x, y);
+    g.rect(0, 0, th, len, th/2);
+    g.pop();
+  }
+
+  // draw segments for '2': top (a), upper-right (b), middle (g), lower-left (e)
+  g.fill(0);
+  drawH(cx, aY, segLen, segTh); // top
+  drawV(rightX, topVertY, h * 0.28, segTh); // upper-right (b)
+  drawH(cx, gY, segLen, segTh); // middle (g)
+  drawV(leftX, botVertY, h * 0.28, segTh); // lower-left (e)
+
+  // erase bottom horizontal (d) to make it transparent
+  g.push();
+  g.erase();
+  drawH(cx, dY, segLen + 2, segTh);
+  g.noErase();
+  g.pop();
+
+  return makeWhiteTransparent(g);
+}
+
+// build a procedural front for Tile D: a 7-seg '9' drawn with 6 straight
+// segments (a, b, c, d, f, g) and then erase the two upper vertical
+// segments (f and b) to make them transparent. No angled segments used.
+function buildTileDFront(w, h) {
+  const g = createGraphics(w, h);
+  g.clear();
+  g.noStroke();
+  // base green background
+  g.fill(90,160,60);
+  g.rect(0,0,w,h,12);
+
+  const segTh = Math.floor(min(w,h) * 0.12);
+  const segLen = Math.floor(w * 0.56);
+  const cx = w/2;
+  const cy = h/2;
+  const aY = h * 0.18;
+  const gY = cy;
+  const dY = h * 0.82;
+  const leftX = w * 0.22;
+  const rightX = w * 0.78;
+  const topVertY = h * 0.32;
+  const botVertY = h * 0.68;
+
+  function drawH(x, y, len, th) {
+    g.push();
+    g.rectMode(CENTER);
+    g.rect(x, y, len, th, th/2);
+    g.pop();
+  }
+  function drawV(x, y, len, th) {
+    g.push();
+    g.rectMode(CENTER);
+    g.translate(x, y);
+    g.rect(0, 0, th, len, th/2);
+    g.pop();
+  }
+
+  // draw the 6 segments for a '9': a, b, c, d, f, g
+  g.fill(0);
+  drawH(cx, aY, segLen, segTh); // a: top
+  drawV(rightX, topVertY, h * 0.28, segTh); // b: top-right
+  drawV(rightX, botVertY, h * 0.28, segTh); // c: bottom-right
+  drawH(cx, dY, segLen, segTh); // d: bottom
+  drawV(leftX, topVertY, h * 0.28, segTh); // f: top-left
+  drawH(cx, gY, segLen, segTh); // g: middle
+
+  // erase the two upper vertical segments (top-left `f` and top-right `b`)
+  g.push();
+  g.erase();
+  drawV(leftX, topVertY, h * 0.28, segTh);
+  drawV(rightX, topVertY, h * 0.28, segTh);
+  g.noErase();
+  g.pop();
+
+  return makeWhiteTransparent(g);
+}
+
+// build a procedural back for Tile D: a '2' drawn with straight 7-seg style
+// segments (a, b, g, e, d) but with the upper-right segment (b) erased
+// (transparent). No angled segments used.
+function buildTileDBack(w, h) {
+  const g = createGraphics(w, h);
+  g.clear();
+  g.noStroke();
+  // base back color (match front green)
+  g.fill(90,160,60);
+  g.rect(0,0,w,h,12);
+
+  const segTh = Math.floor(min(w,h) * 0.12);
+  const segLen = Math.floor(w * 0.56);
+  const cx = w/2;
+  const cy = h/2;
+  const aY = h * 0.18;
+  const gY = cy;
+  const dY = h * 0.82;
+  const leftX = w * 0.22;
+  const rightX = w * 0.78;
+  const topVertY = h * 0.32;
+  const botVertY = h * 0.68;
+
+  function drawH(x, y, len, th) {
+    g.push();
+    g.rectMode(CENTER);
+    g.rect(x, y, len, th, th/2);
+    g.pop();
+  }
+  function drawV(x, y, len, th) {
+    g.push();
+    g.rectMode(CENTER);
+    g.translate(x, y);
+    g.rect(0, 0, th, len, th/2);
+    g.pop();
+  }
+
+  // draw the '2' segments (a, b, g, e, d)
+  g.fill(0);
+  drawH(cx, aY, segLen, segTh); // top (a)
+  drawV(rightX, topVertY, h * 0.28, segTh); // upper-right (b)
+  drawH(cx, gY, segLen, segTh); // middle (g)
+  drawV(leftX, botVertY, h * 0.28, segTh); // lower-left (e)
+  drawH(cx, dY, segLen, segTh); // bottom (d)
+
+  // erase the upper-right segment to make it transparent
+  g.push();
+  g.erase();
+  drawV(rightX, topVertY, h * 0.28, segTh);
+  // also erase the upper-left segment to add the left upper transparent piece
+  drawV(leftX, topVertY, h * 0.28, segTh);
   g.noErase();
   g.pop();
 

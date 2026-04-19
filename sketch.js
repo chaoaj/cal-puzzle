@@ -17,6 +17,7 @@ let touchState = {
   lastTapTime: 0,
   lastTapX: 0,
   lastTapY: 0,
+  lastTappedTileId: null,
   moved: false
 };
 
@@ -215,7 +216,7 @@ function drawUI() {
   textSize(16);
   fill(240);
   text('Drag tiles to the lower target area.', width/2, 52);
-  text('Double-click or press F to flip. Q/E rotate.', width/2, 72);
+  text('Double-click or press F to flip. Q/E/R rotate 180°. Double-tap selected tile to cycle transforms.', width/2, 72);
 
   // target area
   // draw target area using precomputed targetSlots
@@ -283,38 +284,51 @@ function touchStarted() {
   const ty = touches && touches.length ? touches[0].y : mouseY;
   const t = millis();
 
-  // detect double-tap
-  if (t - touchState.lastTapTime < 350 && dist(tx, ty, touchState.lastTapX, touchState.lastTapY) < 30) {
-    // double tap: flip topmost tile under touch
-    for (let i = tiles.length - 1; i >= 0; i--) {
-      if (tiles[i].hitTest(tx, ty)) {
-        tiles[i].flip();
-        break;
-      }
+  let touchedTile = null;
+  let touchedTileIndex = -1;
+  for (let i = tiles.length - 1; i >= 0; i--) {
+    if (tiles[i].hitTest(tx, ty)) {
+      touchedTile = tiles[i];
+      touchedTileIndex = i;
+      break;
     }
+  }
+
+  // detect double-tap
+  if (
+    touchedTile &&
+    selected === touchedTile &&
+    t - touchState.lastTapTime < 350 &&
+    dist(tx, ty, touchState.lastTapX, touchState.lastTapY) < 30 &&
+    touchState.lastTappedTileId === touchedTile.id
+  ) {
+    touchedTile.cycleTransformState();
     touchState.lastTapTime = 0;
+    touchState.lastTappedTileId = null;
     touchState.moved = false;
+    if (selected) selected.stopDrag();
     return false; // prevent emulated mouse
+  }
+
+  if (touchedTile) {
+    if (touchedTileIndex !== tiles.length - 1) {
+      touchedTile = tiles.splice(touchedTileIndex, 1)[0];
+      tiles.push(touchedTile);
+    }
+    selected = touchedTile;
+    selected.startDrag(tx, ty);
+  } else {
+    selected = null;
   }
 
   touchState.lastTapTime = t;
   touchState.lastTapX = tx;
   touchState.lastTapY = ty;
+  touchState.lastTappedTileId = touchedTile ? touchedTile.id : null;
   touchState.startX = tx;
   touchState.startY = ty;
   touchState.startTime = t;
   touchState.moved = false;
-
-  // select topmost tile under touch (like mousePressed)
-  selected = null;
-  for (let i = tiles.length - 1; i >= 0; i--) {
-    if (tiles[i].hitTest(tx, ty)) {
-      selected = tiles.splice(i, 1)[0];
-      tiles.push(selected);
-      selected.startDrag(tx, ty);
-      break;
-    }
-  }
   return false;
 }
 
@@ -327,29 +341,6 @@ function touchMoved() {
 }
 
 function touchEnded() {
-  const tx = (touches && touches.length) ? touches[0].x : mouseX;
-  const ty = (touches && touches.length) ? touches[0].y : mouseY;
-  const t = millis();
-
-  // If a tile was selected and a swipe occurred, rotate accordingly
-  if (selected && touchState.moved) {
-    const dx = tx - touchState.startX;
-    const dy = ty - touchState.startY;
-    const slen = sqrt(dx*dx + dy*dy);
-    if (slen > 40) {
-      // determine dominant direction
-      if (abs(dx) > abs(dy)) {
-        // horizontal swipe: right -> clockwise, left -> counter
-        if (dx > 0) selected.rotateBy(PI/2);
-        else selected.rotateBy(-PI/2);
-      } else {
-        // vertical swipe: down -> clockwise, up -> counter
-        if (dy > 0) selected.rotateBy(PI/2);
-        else selected.rotateBy(-PI/2);
-      }
-    }
-  }
-
   // stop dragging selection on touch end
   if (selected) selected.stopDrag();
   touchState.moved = false;
@@ -385,8 +376,8 @@ function doubleClicked() {
 function keyPressed() {
   if (!selected) return;
   if (key === 'f' || key === 'F' || key === ' ') selected.flip();
-  if (key === 'q' || key === 'Q') selected.rotateBy(-PI/2);
-  if (key === 'e' || key === 'E') selected.rotateBy(PI/2);
+  if (key === 'q' || key === 'Q') selected.rotateBy(PI);
+  if (key === 'e' || key === 'E') selected.rotateBy(PI);
   if (key === 'r' || key === 'R') selected.rotateBy(PI);
   // send selected tile behind overlapping tiles when holding it and pressing 'b'
   if ((key === 'b' || key === 'B') && selected && selected.dragging) {
@@ -441,7 +432,24 @@ class Tile {
   stopDrag() { this.dragging = false; }
 
   flip() { this.showBack = !this.showBack; }
-  rotateBy(a) { this.rotation = (this.rotation + a) % (TWO_PI); }
+  rotateBy(a) {
+    if (abs(a) < 0.001) return;
+    this.rotation = this.rotation === 0 ? PI : 0;
+  }
+  cycleTransformState() {
+    const states = [
+      { showBack: false, rotation: 0 },
+      { showBack: false, rotation: PI },
+      { showBack: true, rotation: 0 },
+      { showBack: true, rotation: PI }
+    ];
+    const currentIndex = states.findIndex(
+      (state) => state.showBack === this.showBack && state.rotation === this.rotation
+    );
+    const nextState = states[(currentIndex + 1 + states.length) % states.length];
+    this.showBack = nextState.showBack;
+    this.rotation = nextState.rotation;
+  }
 
   hitTest(px, py) {
     // rotate point into local space
